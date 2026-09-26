@@ -24,13 +24,13 @@
         android:paddingBottom="12dp"
         android:visibility="gone">
 
-        <!-- Now playing -->
+        <!-- Current preset -->
         <TextView
             style="@style/Overlay.Caption"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:text="Now playing" />
+            android:text="Preset" />
 
         <TextView
             android:id="@+id/preset_name"
@@ -242,6 +242,11 @@
             android:layout_height="wrap_content" />
 
         <com.example.projectm.visualizer.OptionRow
+            android:id="@+id/row_track_titles"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <com.example.projectm.visualizer.OptionRow
             android:id="@+id/row_memory_limit"
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
@@ -303,7 +308,7 @@
             android:text="↑↓ select   ‹ › change   BACK return" />
     </LinearLayout>
 
-    <!-- Now-playing pill, shown briefly when a preset starts -->
+    <!-- Now-playing pill: the music app's new track, for 20 s (needs notification-listener access) -->
     <LinearLayout
         android:id="@+id/now_playing"
         android:layout_width="wrap_content"

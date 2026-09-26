@@ -1,3 +1,11 @@
+# ProjectM TV 1.9.13
+
+## Added
+- **Track titles.** When the music app starts a new track, its title and artist appear in the lower left for 20 seconds, instead of the preset name at every preset change. Up, Down and Info show the current track again. The app reads the track from the music app's media session, which Android only allows with *notification access*: the app asks for it at launch, or under *Settings › Advanced › Track titles*. TVs without a screen for it (such as the NVIDIA SHIELD) need a one-time adb command, see the README. Without access, nothing is shown.
+- The preset name is shown in the settings panel only.
+
+---
+
 # ProjectM TV 1.9.12
 
 ## Changed

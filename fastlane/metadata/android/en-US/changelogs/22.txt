@@ -1,0 +1,2 @@
+- Track titles: the music app's new track appears for 20 seconds (needs notification access, see README).
+- The preset name moved to the settings panel.

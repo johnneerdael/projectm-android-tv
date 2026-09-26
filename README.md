@@ -14,6 +14,7 @@ This README describes what the app does as of version 1.9.5, and where it falls 
 
 - **Visualizes music from another app.** Play music in a music app, then start ProjectM TV. On the SHIELD, the visuals react to SoundCloud about 10 seconds after launch, and within about 5 seconds after you pause and resume. The app only looks for the music while Android reports that music is playing.
 - **Shows 9,606 presets in shuffled order.** It changes preset every 30 seconds by default, or when you press Left or Right on the remote, and blends the old preset into the new one over 7 seconds. The next preset's shaders are compiled in the background beforehand, so a switch does not freeze the picture.
+- **Shows the track that is playing.** When the music app starts a new track, its title and artist appear in the lower left for 20 seconds (taken from the app's media session, e.g. SoundCloud or Flow). This needs *notification access*, see [Track titles](#track-titles) below; without it, nothing is shown. The preset name is in the settings panel.
 - **Replaces presets that stay black.** If a preset shows only black for about 7 seconds while music plays, the app moves on. A preset that is black a second time is skipped from then on. Since 1.9.5, the presets that were black on the SHIELD render; this rule remains as a safety net (details under *Presets* below).
 - **Adapts the resolution.** *Auto* resolution lowers or raises the render resolution between presets to hold the frame rate. The TV's scaler upscales to the panel.
 - **Protects the music app from being closed.** On TVs with little memory, Android closes other apps when projectM uses too much. The app caps its resolution by installed memory (on a 2 GB SHIELD: 1260p), and in *Auto* resolution it lowers the resolution when Android reports memory pressure.
@@ -83,7 +84,7 @@ A version you built yourself is signed with your own debug key: uninstall it bef
 |---|---|
 | Right, Next, Fast forward | Random preset (instant cut) |
 | Left, Previous, Rewind | Previous preset (instant cut) |
-| Up, Down, Info | Show the name of the current preset |
+| Up, Down, Info | Show the current track again (with notification access) |
 | Center, Enter, Menu | Open the settings panel |
 | Back | Exit the app |
 
@@ -122,7 +123,16 @@ The main panel shows the current preset and a live audio level (*Listening*, *Ve
 - Still silent with *Media capture* on a SHIELD: switch *Audio source* to *Standard*.
 - Still silent with *Standard*: the music app may block capture or send encoded audio, or it may not have been tested (see *Audio* above). Try SoundCloud to confirm the setup works.
 
-**It stutters.** Keep *Resolution* on *Auto*, set *Frame rate* to 30 fps, and lower *Detail* in *Advanced*. The short freeze at each preset change is a known limit.
+**It stutters.** Keep *Resolution* and *Transitions* on *Auto*, set *Frame rate* to 30 fps, and lower *Detail* in *Advanced*.
+
+<a id="track-titles"></a>**No track titles.** Android only shares the playing track with apps that have *notification access* (the app reads no notifications, it needs the access for the media session). At launch the app opens the system screen for it, or select *Settings › Advanced › Track titles*. Many Android TVs, including the NVIDIA SHIELD, have no such screen; then grant it once from a computer with adb (enable *Network debugging* in the TV's developer options):
+
+```sh
+adb connect <TV IP address>:5555
+adb shell cmd notification allow_listener nl.neerdael.projectmtv/com.example.projectm.visualizer.TrackListenerService
+```
+
+*Diagnostics* shows the command too, and whether access is granted. It stays granted across updates; `disallow_listener` with the same argument revokes it.
 
 **The music app closes while the visualizer runs.** Keep *Memory limit* on and *Resolution* on *Auto*. Only *Auto* lowers the resolution when memory runs low.
 

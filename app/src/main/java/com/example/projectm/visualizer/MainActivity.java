@@ -4,6 +4,7 @@ import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -16,11 +17,13 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -32,7 +35,7 @@ public class MainActivity extends Activity {
     private static final int AUDIO_PERMISSION_REQUEST = 1;
     private static final int CAPTURE_CONSENT_REQUEST = 2;
     private static final long MENU_AUTO_HIDE_MS = 10000;
-    private static final long NOW_PLAYING_MS = 6000;
+    private static final long TRACK_SHOWN_MS = 20000;  // a new track's title in the lower left
     private static final long UI_REFRESH_MS = 500;
     private static final long AUDIO_METER_MS = 66;
     private static final long FADE_MS = 180;
@@ -125,6 +128,10 @@ public class MainActivity extends Activity {
         }
     };
     private final Runnable hideNowPlaying = () -> fade(nowPlaying, false);
+    private TrackWatcher trackWatcher;
+    private String currentTrack = "";
+    private boolean trackAccessAsked;  // asked for notification-listener access in this launch
+    private OptionRow trackRow;
     private final Runnable uiRefresh = new Runnable() {
         @Override
         public void run() {
@@ -306,6 +313,7 @@ public class MainActivity extends Activity {
         audioStatus = findViewById(R.id.audio_status);
         nowPlaying = findViewById(R.id.now_playing);
         nowPlayingText = findViewById(R.id.now_playing_text);
+        trackWatcher = new TrackWatcher(this, handler, this::onTrack);
 
         TextView versionInfo = findViewById(R.id.version_info);
         versionInfo.setText("v" + appVersion() + "  ·  projectM " + ProjectMJNI.getVersion());
@@ -404,6 +412,16 @@ public class MainActivity extends Activity {
                 });
 
         setupAudioSourceRow();
+
+        trackRow = findViewById(R.id.row_track_titles);
+        trackRow.setupAction("Track titles", "", () -> {
+            if (trackWatcher.hasAccess()) {
+                Toast.makeText(this, "Shown for 20 s when the music app starts a new track", Toast.LENGTH_LONG).show();
+            } else if (!requestTrackAccess()) {
+                Toast.makeText(this, "This TV has no setting for it. Grant it once from a computer:\n"
+                        + adbTrackCommand(), Toast.LENGTH_LONG).show();
+            }
+        });
 
         skippedRow = findViewById(R.id.row_skipped);
         skippedRow.setupAction("Skipped presets", "None", () -> {
@@ -529,7 +547,6 @@ public class MainActivity extends Activity {
             if (!currentPreset.isEmpty()) {
                 setText(presetName, currentPreset);
                 presetName.setSelected(true);  // start marquee for long names
-                if (menu == Menu.NONE) showNowPlaying(currentPreset);
             }
         }
         if (menu == Menu.NONE) return;
@@ -543,13 +560,14 @@ public class MainActivity extends Activity {
                     renderer.getCurrentFps(), heightLabel(quality.currentHeight()), mode));
         } else {
             skippedRow.setActionValue(skipped > 0 ? numberFormat.format(skipped) + "  ·  Reset" : "None");
+            trackRow.setActionValue(trackWatcher.hasAccess() ? "On" : "Off  ·  Allow");
             setText(diagnostics, String.format(Locale.US,
-                    "Render  %dx%d (%s, limit %s)%nPanel   %dx%d @ %.0f Hz%nUI      %dx%d%nFPS     %.1f of %d%nBlend   %s%nAudio   %s%nDevice  %s tier, %d MB RAM",
+                    "Render  %dx%d (%s, limit %s)%nPanel   %dx%d @ %.0f Hz%nUI      %dx%d%nFPS     %.1f of %d%nBlend   %s%nAudio   %s%nTrack   %s%nDevice  %s tier, %d MB RAM",
                     renderer.getSurfaceWidth(), renderer.getSurfaceHeight(), mode,
                     memoryLimit() > 0 ? heightLabel(memoryLimit()) : "none",
                     display.physicalWidth, display.physicalHeight, display.refreshRate,
                     display.uiWidth, display.uiHeight,
-                    renderer.getCurrentFps(), frameRateTarget, transitionLabel(), audioLabel(),
+                    renderer.getCurrentFps(), frameRateTarget, transitionLabel(), audioLabel(), trackLabel(),
                     profile.tier.name().toLowerCase(Locale.US), profile.totalRamMb));
         }
     }
@@ -580,13 +598,25 @@ public class MainActivity extends Activity {
         return String.format(Locale.US, "%s, %.2f %s", source, level, level < 0.02f ? "(very quiet)" : "(live)");
     }
 
-    private void showNowPlaying(String name) {
-        if (name.isEmpty()) return;
-        setText(nowPlayingText, name);
+    /**
+     * A new track from the music app's media session: its title in the lower left for 20 s. A
+     * completed label of the same track (artist after title) only updates the text.
+     */
+    private void onTrack(String label, boolean newTrack) {
+        currentTrack = label;
+        if (label.isEmpty() || menu != Menu.NONE) return;
+        if (!newTrack && nowPlaying.getVisibility() != View.VISIBLE) return;
+        setText(nowPlayingText, label);
         nowPlayingText.setSelected(true);
+        if (!newTrack) return;
         fade(nowPlaying, true);
         handler.removeCallbacks(hideNowPlaying);
-        handler.postDelayed(hideNowPlaying, NOW_PLAYING_MS);
+        handler.postDelayed(hideNowPlaying, TRACK_SHOWN_MS);
+    }
+
+    /** Diagnostics line: whether the playing track can be read (Android TV: granted over adb). */
+    private String trackLabel() {
+        return trackWatcher.hasAccess() ? "shown on track changes" : "no access (" + adbTrackCommand() + ")";
     }
 
     private static String displayName(String preset) {
@@ -641,7 +671,7 @@ public class MainActivity extends Activity {
             case KeyEvent.KEYCODE_DPAD_UP:
             case KeyEvent.KEYCODE_DPAD_DOWN:
             case KeyEvent.KEYCODE_INFO:
-                showNowPlaying(currentPreset);
+                onTrack(currentTrack, true);  // the track again (nothing without access)
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -919,10 +949,49 @@ public class MainActivity extends Activity {
         audioHandler.postDelayed(audioWatch, AUDIO_WATCH_MS);
         handler.post(uiRefresh);
         if (menu == Menu.MAIN) handler.post(audioMeterRefresh);
+        // Checked on every resume: access may have been granted while the app was in the background.
+        if (!trackWatcher.start()) {
+            Log.i(TAG, "Track titles off: no notification-listener access");
+            // Asked once per launch, after the microphone permission (not on top of its dialog).
+            if (!trackAccessAsked && hasAudioPermission()) {
+                trackAccessAsked = true;
+                requestTrackAccess();
+            }
+        }
+    }
+
+    /**
+     * Opens the system screen that grants notification-listener access (needed to read the playing
+     * track). Returns false if the TV has none (e.g. NVIDIA SHIELD): then it is granted over adb.
+     */
+    private boolean requestTrackAccess() {
+        ComponentName component = new ComponentName(this, TrackListenerService.class);
+        List<Intent> screens = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= 30) {
+            screens.add(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                    .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString()));
+        }
+        screens.add(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+        for (Intent screen : screens) {
+            try {
+                startActivity(screen);
+                Log.i(TAG, "Asked for notification-listener access: " + screen.getAction());
+                return true;
+            } catch (ActivityNotFoundException | SecurityException e) {
+                // try the next screen
+            }
+        }
+        Log.i(TAG, "No settings screen for notification-listener access: grant it over adb (" + adbTrackCommand() + ")");
+        return false;
+    }
+
+    private String adbTrackCommand() {
+        return "adb shell cmd notification allow_listener " + getPackageName() + "/" + TrackListenerService.class.getName();
     }
 
     @Override
     protected void onPause() {
+        trackWatcher.stop();
         handler.removeCallbacks(uiRefresh);
         handler.removeCallbacks(audioMeterRefresh);
         resumed = false;

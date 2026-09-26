@@ -4,7 +4,8 @@ It visualizes the music another app plays on the TV, such as SoundCloud. It is n
 
 <b>What it does</b>
 <ul>
-<li>Shows 9,606 presets in shuffled order, changing every 30 seconds by default or with Left/Right on the remote</li>
+<li>Shows 9,606 presets in shuffled order, changing every 30 seconds by default or with Left/Right on the remote, with smooth blends between them</li>
+<li>Shows the title and artist of each new track for 20 seconds (needs notification access; on TVs without a setting for it, a one-time adb command)</li>
 <li>Adapts the render resolution to hold the frame rate, and caps it by the TV's memory so the music app is not closed</li>
 <li>Finds the audio of the playing app even where Android's standard visualizer hears nothing (e.g. NVIDIA SHIELD with Dolby output)</li>
 <li>Replaces presets that stay black while music plays</li>
@@ -16,7 +17,6 @@ It visualizes the music another app plays on the TV, such as SoundCloud. It is n
 <li>Tested on NVIDIA SHIELD Android TV only; other TVs should work but are untested</li>
 <li>Needs Android 5.0+ with OpenGL ES 3.0 and the permission to record audio (to receive the music, not the microphone)</li>
 <li>Finding the music takes about 10 seconds after launch; only SoundCloud has been tested</li>
-<li>Each preset change freezes the picture briefly (about 1 second) while its shaders compile</li>
 <li>Apps that block audio capture cannot be visualized</li>
 </ul>
 
