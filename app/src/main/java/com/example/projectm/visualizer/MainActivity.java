@@ -3,8 +3,8 @@ package com.example.projectm.visualizer;
 import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -17,7 +17,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
@@ -36,6 +35,7 @@ public class MainActivity extends Activity {
     private static final int CAPTURE_CONSENT_REQUEST = 2;
     private static final long MENU_AUTO_HIDE_MS = 10000;
     private static final long TRACK_SHOWN_MS = 20000;  // a new track's title in the lower left
+    private static final long TRACK_ACCESS_DELAY_MS = 1500;
     private static final long UI_REFRESH_MS = 500;
     private static final long AUDIO_METER_MS = 66;
     private static final long FADE_MS = 180;
@@ -417,9 +417,8 @@ public class MainActivity extends Activity {
         trackRow.setupAction("Track titles", "", () -> {
             if (trackWatcher.hasAccess()) {
                 Toast.makeText(this, "Shown for 20 s when the music app starts a new track", Toast.LENGTH_LONG).show();
-            } else if (!requestTrackAccess()) {
-                Toast.makeText(this, "This TV has no setting for it. Grant it once from a computer:\n"
-                        + adbTrackCommand(), Toast.LENGTH_LONG).show();
+            } else {
+                explainTrackAccess();
             }
         });
 
@@ -614,9 +613,10 @@ public class MainActivity extends Activity {
         handler.postDelayed(hideNowPlaying, TRACK_SHOWN_MS);
     }
 
-    /** Diagnostics line: whether the playing track can be read (Android TV: granted over adb). */
+    /** Diagnostics line: whether the playing track can be read. */
     private String trackLabel() {
-        return trackWatcher.hasAccess() ? "shown on track changes" : "no access (" + adbTrackCommand() + ")";
+        return trackWatcher.hasAccess() ? "shown on track changes"
+                : "no access (" + TRACK_ACCESS_PATH + ")";
     }
 
     private static String displayName(String preset) {
@@ -952,42 +952,35 @@ public class MainActivity extends Activity {
         // Checked on every resume: access may have been granted while the app was in the background.
         if (!trackWatcher.start()) {
             Log.i(TAG, "Track titles off: no notification-listener access");
-            // Asked once per launch, after the microphone permission (not on top of its dialog).
+            // Explained once per launch, after the microphone permission (not on top of its dialog).
             if (!trackAccessAsked && hasAudioPermission()) {
                 trackAccessAsked = true;
-                requestTrackAccess();
+                handler.postDelayed(() -> {
+                    if (resumed && !trackWatcher.hasAccess()) explainTrackAccess();
+                }, TRACK_ACCESS_DELAY_MS);
             }
         }
     }
+
+    /** Where Android TV settings keep notification access. */
+    private static final String TRACK_ACCESS_PATH =
+            "Settings › Device Preferences › Apps › Special app access › Notification access";
 
     /**
-     * Opens the system screen that grants notification-listener access (needed to read the playing
-     * track). Returns false if the TV has none (e.g. NVIDIA SHIELD): then it is granted over adb.
+     * Explains how to allow notification-listener access, which the app needs to read the playing
+     * track from the music app's media session. Only information: the user enables it in the TV's
+     * settings (the app is listed there because it declares {@link TrackListenerService}).
      */
-    private boolean requestTrackAccess() {
-        ComponentName component = new ComponentName(this, TrackListenerService.class);
-        List<Intent> screens = new ArrayList<>();
-        if (Build.VERSION.SDK_INT >= 30) {
-            screens.add(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
-                    .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString()));
-        }
-        screens.add(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
-        for (Intent screen : screens) {
-            try {
-                startActivity(screen);
-                Log.i(TAG, "Asked for notification-listener access: " + screen.getAction());
-                return true;
-            } catch (ActivityNotFoundException | SecurityException e) {
-                // try the next screen
-            }
-        }
-        Log.i(TAG, "No settings screen for notification-listener access: grant it over adb (" + adbTrackCommand() + ")");
-        return false;
+    private void explainTrackAccess() {
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Show track titles")
+                .setMessage("To show the title and artist of each new track, allow " + getString(R.string.app_name)
+                        + " under\n\n" + TRACK_ACCESS_PATH + "\n\nThe app reads no notifications; Android requires"
+                        + " this access to see which track the music app is playing.")
+                .setPositiveButton("OK", null)
+                .show();
     }
 
-    private String adbTrackCommand() {
-        return "adb shell cmd notification allow_listener " + getPackageName() + "/" + TrackListenerService.class.getName();
-    }
 
     @Override
     protected void onPause() {

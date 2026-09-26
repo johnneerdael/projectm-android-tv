@@ -55,8 +55,8 @@
             </intent-filter>
         </activity>
 
-        <!-- Lets the app read the playing track from the music app's media session, once granted
-             (Android TV: adb shell cmd notification allow_listener, see README). -->
+        <!-- Lets the app read the playing track from the music app's media session, once the user
+             allows it (Settings › Apps › Special app access › Notification access). -->
         <service
             android:name="com.example.projectm.visualizer.TrackListenerService"
             android:exported="true"

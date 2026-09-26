@@ -55,7 +55,7 @@ final class TrackWatcher {
         this.component = new ComponentName(context, TrackListenerService.class);
     }
 
-    /** Whether the user granted notification-listener access (Android TV: over adb). */
+    /** Whether the user granted notification-listener access (Settings › Apps › Special app access). */
     boolean hasAccess() {
         String enabled = Settings.Secure.getString(context.getContentResolver(), "enabled_notification_listeners");
         return enabled != null && (enabled.contains(component.flattenToString())

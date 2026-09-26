@@ -14,7 +14,7 @@ This README describes what the app does as of version 1.9.5, and where it falls 
 
 - **Visualizes music from another app.** Play music in a music app, then start ProjectM TV. On the SHIELD, the visuals react to SoundCloud about 10 seconds after launch, and within about 5 seconds after you pause and resume. The app only looks for the music while Android reports that music is playing.
 - **Shows 9,606 presets in shuffled order.** It changes preset every 30 seconds by default, or when you press Left or Right on the remote, and blends the old preset into the new one over 7 seconds. The next preset's shaders are compiled in the background beforehand, so a switch does not freeze the picture.
-- **Shows the track that is playing.** When the music app starts a new track, its title and artist appear in the lower left for 20 seconds (taken from the app's media session, e.g. SoundCloud or Flow). This needs *notification access*, see [Track titles](#track-titles) below; without it, nothing is shown. The preset name is in the settings panel.
+- **Shows the track that is playing.** When the music app starts a new track, its title and artist appear in the lower left for 20 seconds (taken from the app's media session, e.g. SoundCloud or Flow). This needs *notification access* (on the SHIELD: *Settings › Device Preferences › Apps › Special app access › Notification access*), see [Track titles](#track-titles) below; without it, nothing is shown. The preset name is in the settings panel.
 - **Replaces presets that stay black.** If a preset shows only black for about 7 seconds while music plays, the app moves on. A preset that is black a second time is skipped from then on. Since 1.9.5, the presets that were black on the SHIELD render; this rule remains as a safety net (details under *Presets* below).
 - **Adapts the resolution.** *Auto* resolution lowers or raises the render resolution between presets to hold the frame rate. The TV's scaler upscales to the panel.
 - **Protects the music app from being closed.** On TVs with little memory, Android closes other apps when projectM uses too much. The app caps its resolution by installed memory (on a 2 GB SHIELD: 1260p), and in *Auto* resolution it lowers the resolution when Android reports memory pressure.
@@ -55,6 +55,17 @@ This README describes what the app does as of version 1.9.5, and where it falls 
 - A music app that plays on the same device
 - The *Media capture* audio source needs Android 10 or later
 
+## Permissions
+
+The app has no internet permission: nothing it hears or reads can leave the TV. Audio is analysed in memory for the visuals and never recorded or stored.
+
+| Permission | Why | When it is asked |
+|---|---|---|
+| Record audio (`RECORD_AUDIO`) | Android's audio visualizer and playback capture both count as recording. The app only receives the sound other apps play, to animate the presets; the microphone is not used. | At first launch |
+| Change audio settings (`MODIFY_AUDIO_SETTINGS`) | Required by Android to attach a visualizer to the TV's main audio output (session 0), which the app listens to until it has found the music app's own audio session. | Granted at install |
+| Foreground service (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`) | Only for the *Media capture* audio source (Android 10+): Android runs playback capture in a foreground service. | Granted at install; *Media capture* also shows Android's screen-casting consent each time it starts |
+| Notification access (special access) | Only to read which track the music app is playing (its media session), for the track titles. The app reads no notifications. | You switch it on in the TV's settings (*Apps › Special app access › Notification access*); the app explains where at launch while it is off. Optional: without it no titles are shown |
+
 ## Install
 
 **On the TV, with Downloader (easiest)**
@@ -70,7 +81,7 @@ curl -LO https://github.com/johnneerdael/ProjectM-TV/releases/latest/download/pr
 adb install -r projectM-TV.apk
 ```
 
-**Then:** start the music in your music app and open ProjectM TV. Android asks for permission to record audio; the app needs it to receive the music.
+**Then:** start the music in your music app and open ProjectM TV. Android asks for permission to record audio; the app needs it to receive the music (see [Permissions](#permissions)). It then explains how to allow notification access, which lets it show track titles.
 
 From 1.9.7 on, updates install over the previous version and keep your settings. Two one-time steps if you used an earlier version:
 - **1.9.7 changed the app ID** to `nl.neerdael.projectmtv`. It installs as a new app next to the old one; uninstall the old *ProjectM Visualizer* (`com.example.projectm.visualizer`) afterwards.
@@ -125,14 +136,7 @@ The main panel shows the current preset and a live audio level (*Listening*, *Ve
 
 **It stutters.** Keep *Resolution* and *Transitions* on *Auto*, set *Frame rate* to 30 fps, and lower *Detail* in *Advanced*.
 
-<a id="track-titles"></a>**No track titles.** Android only shares the playing track with apps that have *notification access* (the app reads no notifications, it needs the access for the media session). At launch the app opens the system screen for it, or select *Settings › Advanced › Track titles*. Many Android TVs, including the NVIDIA SHIELD, have no such screen; then grant it once from a computer with adb (enable *Network debugging* in the TV's developer options):
-
-```sh
-adb connect <TV IP address>:5555
-adb shell cmd notification allow_listener nl.neerdael.projectmtv/com.example.projectm.visualizer.TrackListenerService
-```
-
-*Diagnostics* shows the command too, and whether access is granted. It stays granted across updates; `disallow_listener` with the same argument revokes it.
+<a id="track-titles"></a>**No track titles.** Android only shares the playing track with apps that have *notification access* (the app reads no notifications, it needs the access for the media session). Switch it on in the TV's settings under *Apps › Special app access › Notification access › ProjectM TV* (on the NVIDIA SHIELD: *Settings › Device Preferences › Apps › Special app access › Notification access*). While access is missing, the app explains this once per launch; *Settings › Advanced › Track titles* shows the explanation again, and *Diagnostics* shows whether access is granted.
 
 **The music app closes while the visualizer runs.** Keep *Memory limit* on and *Resolution* on *Auto*. Only *Auto* lowers the resolution when memory runs low.
 
